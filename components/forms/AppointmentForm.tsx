@@ -113,7 +113,7 @@ const  AppointmentForm=({
 
         if (updatedAppointment) {
           setOpen && setOpen(false);
-         router.refresh();
+          router.refresh();
           form.reset();
         }
       }
