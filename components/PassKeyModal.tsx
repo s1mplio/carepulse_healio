@@ -40,7 +40,7 @@ const PassKeyModal = () => {
    
   const encryptedKey =
   typeof window !== "undefined"
-    ? window.localStorage.getItem("accessKey")
+    ? window.sessionStorage.getItem("accessKey")
     : null;
 
 useEffect(() => {
@@ -68,7 +68,7 @@ const validatePasskey = (
   if (passkey === process.env.NEXT_PUBLIC_ADMIN_PASSKEY) {
     const encryptedKey = encryptKey(passkey);
 
-    localStorage.setItem("accessKey", encryptedKey);
+    sessionStorage.setItem("accessKey", encryptedKey);
 
     setOpen(false);
   } else {
