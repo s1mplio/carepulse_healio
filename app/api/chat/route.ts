@@ -1,11 +1,20 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { NextResponse } from "next/server";
 
-const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_KEY || process.env.NEXT_PUBLIC_GEMINI_API_KEY || "");
-
 export async function POST(req: Request) {
   try {
+    const apiKey = process.env.GOOGLE_AI_KEY || process.env.GOOGLE_API_KEY || process.env.NEXT_PUBLIC_GEMINI_API_KEY;
+
+    if (!apiKey) {
+      return NextResponse.json(
+        { error: "Google AI API Key is not configured." },
+        { status: 500 }
+      );
+    }
+
+    const genAI = new GoogleGenerativeAI(apiKey);
     const { messages } = await req.json();
+    const aiModel = process.env.GOOGLE_AI_MODEL ?? "gemini-3-flash-preview";
 
     // Define the Doctor Persona
     const systemInstruction = `
@@ -21,7 +30,7 @@ export async function POST(req: Request) {
     `;
 
     const model = genAI.getGenerativeModel({ 
-      model: "gemini-3-flash-preview",
+      model: aiModel,
       systemInstruction: systemInstruction,
     }); 
 
@@ -41,6 +50,16 @@ export async function POST(req: Request) {
     return NextResponse.json({ content: response });
   } catch (error) {
     console.error("Gemini API Error:", error);
-    return NextResponse.json({ error: "Failed to fetch response" }, { status: 500 });
+    
+    // Extract detailed error message for 403 debugging
+    let errorMessage = "The doctor is currently unavailable.";
+    if (error instanceof Error && error.message.includes("403")) {
+      errorMessage = "Access denied by AI service. Please check regional availability or API key permissions.";
+    }
+
+    return NextResponse.json(
+      { error: errorMessage, detail: error instanceof Error ? error.message : String(error) }, 
+      { status: 500 }
+    );
   }
 }

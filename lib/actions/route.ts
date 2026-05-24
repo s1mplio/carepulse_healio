@@ -3,11 +3,11 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 
 export const dynamic = "force-dynamic";
 
-const AI_MODEL = process.env.GOOGLE_AI_MODEL ?? "gemini-1.5-flash";
-const API_KEY = process.env.GOOGLE_AI_KEY ?? process.env.GOOGLE_API_KEY;
-
 export async function POST(request: Request) {
-  if (!API_KEY) {
+  const apiKey = process.env.GOOGLE_AI_KEY || process.env.GOOGLE_API_KEY || process.env.NEXT_PUBLIC_GEMINI_API_KEY;
+  const aiModel = process.env.GOOGLE_AI_MODEL ?? "gemini-3-flash-preview";
+
+  if (!apiKey) {
     return NextResponse.json(
       { message: "API key is not configured." },
       { status: 500 }
@@ -24,9 +24,9 @@ export async function POST(request: Request) {
       );
     }
 
-    const genAI = new GoogleGenerativeAI(API_KEY);
+    const genAI = new GoogleGenerativeAI(apiKey);
     const model = genAI.getGenerativeModel({
-      model: AI_MODEL,
+      model: aiModel,
       systemInstruction: `You are Dr. CarePulse, a professional and empathetic virtual physician. 
       Your goal is to listen to patients' symptoms, ask clarifying questions, and provide guidance on next steps.
       
