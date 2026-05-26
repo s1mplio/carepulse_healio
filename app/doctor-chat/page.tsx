@@ -3,7 +3,8 @@
 import React, { useState, useRef, useEffect } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { Send, User, Bot } from "lucide-react";
+import { Send, User, Bot, Paperclip, X } from "lucide-react";
+import ReactMarkdown from "react-markdown";
 
 const DoctorChatPage = () => {
   const [messages, setMessages] = useState([
@@ -14,6 +15,7 @@ const DoctorChatPage = () => {
     },
   ]);
   const [input, setInput] = useState("");
+  const [selectedFile, setSelectedFile] = useState<{file: File, base64: string, mimeType: string} | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
@@ -24,6 +26,21 @@ const DoctorChatPage = () => {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [messages]);
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setSelectedFile({
+          file,
+          base64: (reader.result as string).split(",")[1],
+          mimeType: file.type
+        });
+      };
+      reader.readAsDataURL(file);
+    }
+  };
 
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -37,13 +54,18 @@ const DoctorChatPage = () => {
 
     setMessages((prev) => [...prev, userMessage]);
     setInput("");
+    const fileToUpload = selectedFile;
+    setSelectedFile(null);
     setIsLoading(true);
 
     try {
       const response = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: [...messages, userMessage] }),
+        body: JSON.stringify({ 
+          messages: [...messages, userMessage],
+          fileData: fileToUpload ? { base64: fileToUpload.base64, mimeType: fileToUpload.mimeType } : null
+        }),
       });
       const data = await response.json();
 
@@ -99,7 +121,11 @@ const DoctorChatPage = () => {
                 {msg.role === "user" ? <User size={18} /> : <Bot size={18} />}
               </div>
               <div className={`rounded-2xl px-4 py-3 text-sm shadow-md ${msg.role === "user" ? "bg-blue-600 text-white rounded-tr-none" : "bg-dark-400 text-white rounded-tl-none border border-dark-500"}`}>
-                <p className="leading-relaxed">{msg.content}</p>
+                <div className="leading-relaxed whitespace-pre-wrap prose prose-invert max-w-none">
+                  <ReactMarkdown>
+                    {msg.content}
+                  </ReactMarkdown>
+                </div>
                 <span className="mt-2 block text-[10px] opacity-50 text-right">
                   {msg.timestamp.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                 </span>
@@ -119,8 +145,20 @@ const DoctorChatPage = () => {
       </div>
 
       {/* Message Input Form */}
-      <footer className="border-t border-dark-500 bg-dark-200 p-4">
-        <form onSubmit={handleSend} className="mx-auto max-w-4xl flex items-center gap-4">
+      <footer className="border-t border-dark-500 bg-dark-200 p-4 space-y-4">
+        {selectedFile && (
+          <div className="mx-auto max-w-4xl flex items-center gap-2 bg-dark-400 p-2 rounded-lg border border-dark-500 w-fit">
+            <span className="text-xs text-blue-400 truncate max-w-[200px]">{selectedFile.file.name}</span>
+            <button onClick={() => setSelectedFile(null)} className="text-dark-600 hover:text-white">
+              <X size={14} />
+            </button>
+          </div>
+        )}
+        <form onSubmit={handleSend} className="mx-auto max-w-4xl flex items-center gap-2 sm:gap-4">
+          <label className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-dark-500 bg-dark-400 text-dark-600 hover:text-white cursor-pointer transition-colors">
+            <Paperclip size={20} />
+            <input type="file" className="hidden" onChange={handleFileChange} accept="image/*,.pdf" />
+          </label>
           <input type="text" value={input} onChange={(e) => setInput(e.target.value)} placeholder="Describe your health concern..." className="flex-1 bg-dark-400 border border-dark-500 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-1 focus:ring-green-500 transition-all text-white placeholder:text-dark-600" />
           <button type="submit" disabled={!input.trim() || isLoading} className="flex h-11 w-11 items-center justify-center rounded-xl bg-green-500 text-white hover:bg-green-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
             <Send size={20} />

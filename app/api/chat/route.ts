@@ -1,26 +1,41 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { NextResponse } from "next/server";
 
-const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_KEY || process.env.NEXT_PUBLIC_GEMINI_API_KEY || "");
+const genAI = new GoogleGenerativeAI(
+  process.env.GOOGLE_AI_KEY || process.env.NEXT_PUBLIC_GEMINI_API_KEY || ""
+);
 
 export async function POST(req: Request) {
   try {
-    const { messages } = await req.json();
+    const { messages, patientContext, fileData } = await req.json();
 
-    // Define the Doctor Persona
+    // Define the Dr. CarePulse Persona
     const systemInstruction = `
       You are Dr. CarePulse, a highly experienced, empathetic, and professional medical doctor. 
-      Your goal is to help patients understand their symptoms and provide health guidance.
+      Your goal is to help patients understand their symptoms, explain medical reports in simple, patient-friendly language, and provide health guidance.
       
+      When a patient uploads a report:
+      - Summarize the key findings.
+      - Explain medical terms in plain English.
+      - Suggest next steps or questions to ask their real-life doctor.
+      
+      ${patientContext ? `
+      USER MEDICAL CONTEXT:
+      - Allergies: ${patientContext.allergies || 'None reported'}
+      - Current Medications: ${patientContext.currentMedication || 'None reported'}
+      - Past History: ${patientContext.pastMedicalHistory || 'None reported'}
+      ` : ''}
+
       Guidelines:
       1. Be clinical yet compassionate.
       2. Ask clarifying questions one at a time.
       3. Provide structured advice (e.g., immediate steps, when to see a specialist).
       4. Always include a disclaimer that you are an AI assistant and not a replacement for in-person emergency care.
       5. Keep responses concise and focused on the patient's health concerns.
+      6. Use Markdown formatting (bolding, bullet points, and numbered lists) and double line breaks between sections to ensure maximum readability.
     `;
 
-    const model = genAI.getGenerativeModel({ 
+    const model = genAI.getGenerativeModel({
       model: "gemini-3-flash-preview",
       systemInstruction: systemInstruction,
     }); 
@@ -35,7 +50,16 @@ export async function POST(req: Request) {
     });
 
     const lastMessage = messages[messages.length - 1].content;
-    const result = await chat.sendMessage(lastMessage);
+    
+    // Prepare parts for the message (text + optional file)
+    const promptParts: any[] = [lastMessage];
+    if (fileData) {
+      promptParts.push({
+        inlineData: { mimeType: fileData.mimeType, data: fileData.base64 }
+      });
+    }
+
+    const result = await chat.sendMessage(promptParts);
     const response = result.response.text();
 
     return NextResponse.json({ content: response });
