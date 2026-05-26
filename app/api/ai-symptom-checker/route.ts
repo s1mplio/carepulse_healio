@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server"
+import { GoogleGenerativeAI } from "@google/generative-ai"
 
 export const dynamic = "force-dynamic"
 
 const AI_MODEL = process.env.GOOGLE_AI_MODEL ?? "gemini-3-flash-preview"
-const API_KEY = process.env.GOOGLE_AI_KEY ?? process.env.GOOGLE_API_KEY
+const API_KEY = process.env.GOOGLE_AI_KEY || process.env.GOOGLE_API_KEY || process.env.NEXT_PUBLIC_GEMINI_API_KEY
 
 function findJson(text: string) {
   // Remove markdown code blocks and trim
@@ -26,7 +27,7 @@ function findJson(text: string) {
 export async function POST(request: Request) {
   if (!API_KEY) {
     return NextResponse.json(
-      { message: "Missing Google AI API key. Set GOOGLE_AI_KEY or GOOGLE_API_KEY." },
+      { message: "Missing Google AI API key. Please check your Vercel environment variables." },
       { status: 500 }
     )
   }
@@ -57,7 +58,6 @@ Example output:
   let responseText = ""
 
   try {
-    const { GoogleGenerativeAI } = await import("@google/generative-ai")
     const genAI = new GoogleGenerativeAI(API_KEY)
     const model = genAI.getGenerativeModel({ model: AI_MODEL })
     

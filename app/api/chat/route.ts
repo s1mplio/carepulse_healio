@@ -1,12 +1,18 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { NextResponse } from "next/server";
 
-const genAI = new GoogleGenerativeAI(
-  process.env.GOOGLE_AI_KEY || process.env.NEXT_PUBLIC_GEMINI_API_KEY || ""
-);
-
 export async function POST(req: Request) {
   try {
+    const apiKey = process.env.GOOGLE_AI_KEY || process.env.NEXT_PUBLIC_GEMINI_API_KEY || "";
+
+    if (!apiKey) {
+      return NextResponse.json(
+        { error: "Google AI API Key is not configured." },
+        { status: 500 }
+      );
+    }
+
+    const genAI = new GoogleGenerativeAI(apiKey);
     const { messages, patientContext, fileData } = await req.json();
 
     // Define the Dr. CarePulse Persona
@@ -35,19 +41,24 @@ export async function POST(req: Request) {
       6. Use Markdown formatting (bolding, bullet points, and numbered lists) and double line breaks between sections to ensure maximum readability.
     `;
 
-    const model = genAI.getGenerativeModel({
+    const model = genAI.getGenerativeModel({ 
       model: "gemini-3-flash-preview",
       systemInstruction: systemInstruction,
     }); 
 
     // Gemini history must start with a "user" message. 
     // We skip the first message (index 0) because it is the initial assistant greeting.
-    const chat = model.startChat({
-      history: messages.slice(1, -1).map((m: any) => ({
+    let history = messages.slice(0, -1).map((m: any) => ({
         role: m.role === "assistant" ? "model" : "user",
         parts: [{ text: m.content }],
-      })),
-    });
+    }));
+
+    // Gemini requires the first message in history to be from the 'user'
+    while (history.length > 0 && history[0].role !== 'user') {
+      history.shift();
+    }
+
+    const chat = model.startChat({ history });
 
     const lastMessage = messages[messages.length - 1].content;
     
@@ -65,6 +76,16 @@ export async function POST(req: Request) {
     return NextResponse.json({ content: response });
   } catch (error) {
     console.error("Gemini API Error:", error);
-    return NextResponse.json({ error: "Failed to fetch response" }, { status: 500 });
+    
+    // Extract detailed error message for 403 debugging
+    let errorMessage = "The doctor is currently unavailable.";
+    if (error instanceof Error && error.message.includes("403")) {
+      errorMessage = "Access denied by AI service. Please check regional availability or API key permissions.";
+    }
+
+    return NextResponse.json(
+      { error: errorMessage, detail: error instanceof Error ? error.message : String(error) }, 
+      { status: 500 }
+    );
   }
 }
